@@ -50,7 +50,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define DEBUG 0
+
 #define MAX_VALUES 24
 // Fan specific data, assuming the default Supermicro fan
 #define MAX_FANSPEED 12000
@@ -61,9 +61,8 @@
 int tachoControl;  // Hex 0 - 255 PWM frequency in kHz.
 int a[MAX_VALUES]; // Max amount of sensors we want to read in
 int interval;      // Our interval to repeat execution every x seconds
+int debug;
 
-#if defined DEBUG
-#if DEBUG == 1
 void printfVals() {
   for (float i = 0.0; i <= 100.0; i++) // From 0 to 100 degrees
   {
@@ -72,8 +71,6 @@ void printfVals() {
            (pwm_frequency * FAN_DIFF));
   }
 }
-#endif
-#endif
 
 float hysteresisControl(int temp) {
   // g(x) = e^((x - 17.33793493) / 15) + 7.65
@@ -166,23 +163,16 @@ void setFanSpeed()
     system(buffer);
     sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x11 0x%x", targetFanSpeed);//Issued command
     system(buffer);
-#if defined DEBUG
-#if DEBUG == 1
+   if(debug == 1)
+   {
       printf("Highest temp: %d\n", a[k]);
       float realFanSpeed = (targetFanSpeed * FAN_DIFF);
       printf("Target fan speed: 0x%x = %f 1/60s\n\n", targetFanSpeed,
              realFanSpeed);
-#endif
-#endif
+   }
       break;
     }
   }
-
-#if defined DEBUG
-#if DEBUG == 1
-  printfVals();
-#endif
-#endif
   // Close file handler
   pclose(fp);
 }
@@ -191,7 +181,8 @@ int main(int argc, char *argv[]) {
 
   if (argc == 2 && strcmp(argv[1], "--help") == 0) {
 
-    printf("Execute: %s ... [INTERVAL]...\n\n", argv[0]);
+    printf("Execute: %s ... [INTERVAL] ... [OPTION] \n\n", argv[0]);
+    printf(" --table, prints scaled fan speed information");
     printf("Temperature control for X9 based Supermicro boards.\n");
     printf("Using Bang–bang control with hysteresis and f=1/s\n");
     printf("Δx = 2*1K\n");
@@ -204,10 +195,21 @@ int main(int argc, char *argv[]) {
     printf("All rights reserved.\n");
     return 0;
   }
-
-  if (argc == 2) {
+  if (argc == 2 && strcmp(argv[1], "--table") == 0) {
+    printfVals();
+    return 0;
+  }
+  if ((argc == 2 && strcmp(argv[1], "--debug") == 0) || argc == 1) {
+    printf("Fanspeed set.\n");
+    setFanSpeed();
+    return 0;
+  }
+  if ((argc == 2) || (argc == 3 && strcmp(argv[2], "--debug") == 0)) {
     // Check if a valid interval has been entered
-
+    if (strcmp(argv[2], "--debug") == 0)
+    {
+	debug=1;
+    }
     char *p;
 
     errno = 0;
@@ -218,10 +220,11 @@ int main(int argc, char *argv[]) {
     if (errno != 0 || *p != '\0' || conv < INT_MIN) {
       // Put here the handling of the error, like exiting the program with
       // an error message
+      printf("Invalid input specified.");
     } else {
       // No error
       interval = conv;
-      printf("Hysteresis: %d seconds\n", interval);
+      printf("Hysteresis: %d seconds. This program will continue until being interrupted.\n", interval);
 
       // Block
     LOOP:
@@ -231,8 +234,6 @@ int main(int argc, char *argv[]) {
       goto LOOP;
     }
 
-  } else {
-    setFanSpeed();
-  }
+  } 
   return 0;
 }
