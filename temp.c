@@ -50,7 +50,6 @@
 #include <string.h>
 #include <unistd.h>
 
-
 #define MAX_VALUES 24
 // Fan specific data, assuming the default Supermicro fan
 #define MAX_FANSPEED 12000
@@ -158,18 +157,19 @@ void setFanSpeed()
     if (a[k] > 0) {
       int max = a[k];
       int targetFanSpeed = interpolateFanSpeed(hysteresisControl(max));
-    unsigned char buffer[32];
-    sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x10 0x%x", targetFanSpeed);//Issued command
-    system(buffer);
-    sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x11 0x%x", targetFanSpeed);//Issued command
-    system(buffer);
-   if(debug == 1)
-   {
-      printf("Highest temp: %d\n", a[k]);
-      float realFanSpeed = (targetFanSpeed * FAN_DIFF);
-      printf("Target fan speed: 0x%x = %f 1/60s\n\n", targetFanSpeed,
-             realFanSpeed);
-   }
+      unsigned char buffer[32];
+      sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x10 0x%x",
+              targetFanSpeed); // Issued command
+      system(buffer);
+      sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x11 0x%x",
+              targetFanSpeed); // Issued command
+      system(buffer);
+      if (debug == 1) {
+        printf("Highest temp: %d\n", a[k]);
+        float realFanSpeed = (targetFanSpeed * FAN_DIFF);
+        printf("Target fan speed: 0x%x = %f 1/60s\n\n", targetFanSpeed,
+               realFanSpeed);
+      }
       break;
     }
   }
@@ -178,37 +178,46 @@ void setFanSpeed()
 }
 
 int main(int argc, char *argv[]) {
+  debug = 0;
 
-  if (argc == 2 && strcmp(argv[1], "--help") == 0) {
-
-    printf("Execute: %s ... [INTERVAL] ... [OPTION] \n\n", argv[0]);
-    printf(" --table, prints scaled fan speed information");
-    printf("Temperature control for X9 based Supermicro boards.\n");
-    printf("Using Bang–bang control with hysteresis and f=1/s\n");
-    printf("Δx = 2*1K\n");
-    printf("t=1s\n");
-    printf("PT1 first order lag element.\n");
-    printf("\n");
-    printf("Relational approach g(x) = e^((x - 17.33793493) / 15) + 7.65\n");
-    printf("\n");
-    printf("Copyright (c) Fabian Druschke 2020\n");
-    printf("All rights reserved.\n");
-    return 0;
-  }
-  if (argc == 2 && strcmp(argv[1], "--table") == 0) {
-    printfVals();
-    return 0;
-  }
-  if ((argc == 2 && strcmp(argv[1], "--debug") == 0) || argc == 1) {
+  if (argc == 1) {
     printf("Fanspeed set.\n");
     setFanSpeed();
     return 0;
   }
+
+  if (argc == 2) {
+    if (strcmp(argv[1], "--help") == 0) {
+
+      printf("Execute: %s ... [INTERVAL] ... [OPTION] \n\n", argv[0]);
+      printf(" --table, prints scaled fan speed information");
+      printf("Temperature control for X9 based Supermicro boards.\n");
+      printf("Using Bang�^`^sbang control with hysteresis and f=1/s\n");
+      printf("�^tx = 2*1K\n");
+      printf("t=1s\n");
+      printf("PT1 first order lag element.\n");
+      printf("\n");
+      printf("Relational approach g(x) = e^((x - 17.33793493) / 15) + 7.65\n");
+      printf("\n");
+      printf("Copyright (c) Fabian Druschke 2020\n");
+      printf("All rights reserved.\n");
+      return 0;
+    }
+    if (strcmp(argv[1], "--table") == 0) {
+      printfVals();
+      return 0;
+    }
+    if (strcmp(argv[1], "--debug") == 0) {
+      printf("Fanspeed set.\n");
+      debug = 1;
+      setFanSpeed();
+      return 0;
+    }
+  }
   if ((argc == 2) || (argc == 3 && strcmp(argv[2], "--debug") == 0)) {
     // Check if a valid interval has been entered
-    if (strcmp(argv[2], "--debug") == 0)
-    {
-	debug=1;
+    if (strcmp(argv[2], "--debug") == 0) {
+      debug = 1;
     }
     char *p;
 
@@ -224,7 +233,9 @@ int main(int argc, char *argv[]) {
     } else {
       // No error
       interval = conv;
-      printf("Hysteresis: %d seconds. This program will continue until being interrupted.\n", interval);
+      printf("Hysteresis: %d seconds. This program will continue until being "
+             "interrupted.\n",
+             interval);
 
       // Block
     LOOP:
@@ -233,7 +244,6 @@ int main(int argc, char *argv[]) {
       sleep(1);
       goto LOOP;
     }
-
-  } 
+  }
   return 0;
 }
