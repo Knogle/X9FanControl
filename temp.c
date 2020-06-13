@@ -50,7 +50,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #define MAX_VALUES 24
 // Fan specific data, assuming the default Supermicro fan
 #define MAX_FANSPEED 12000
@@ -92,7 +92,7 @@ void swap(int *keys, int n, int m) {
   keys[m] = tmp;
 }
 
-void heapsort(int *keys, int n_keys) {
+void __heapsort(int *keys, int n_keys) {
   keys -= 1;
 
   for (int last = 1; last <= n_keys; ++last) {
@@ -138,7 +138,7 @@ void setFanSpeed()
   char path[1035];
 
   // Open the command for reading.
-  fp = popen("/home/chairman/sim.sh", "r");
+  fp = popen("sysctl -a | grep temperature", "r");
   if (fp == NULL) {
     printf("Failed to run command\n");
     exit(1);
@@ -156,11 +156,16 @@ void setFanSpeed()
     i++;
   }
   int n_a = sizeof(a) / sizeof(int);
-  heapsort(a, n_a);
+  __heapsort(a, n_a);
   for (int k = sizeof(a); k > 0; k--) {
     if (a[k] > 0) {
       int max = a[k];
       int targetFanSpeed = interpolateFanSpeed(hysteresisControl(max));
+    unsigned char buffer[32];
+    sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x10 0x%x", targetFanSpeed);//Issued command
+    system(buffer);
+    sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x11 0x%x", targetFanSpeed);//Issued command
+    system(buffer);
 #if defined DEBUG
 #if DEBUG == 1
       printf("Highest temp: %d\n", a[k]);
