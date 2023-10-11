@@ -11,7 +11,7 @@
  *
  * Relational approach g(x) = e^((x - 17.33793493) / 15) + 7.65
  *
- * Copyright (c) Fabian Druschke 2023
+ * Copyright (c) Fabian Druschke 2020
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,147 +51,199 @@
 #include <unistd.h>
 
 #define MAX_VALUES 24
+// Fan specific data, assuming the default Supermicro fan
 #define MAX_FANSPEED 12000
 #define MAX_PWM_VAL 255
-#define FAN_DIFF (MAX_FANSPEED / MAX_PWM_VAL)
-#define MIN_INTERVAL 1
+#define FAN_DIFF MAX_FANSPEED / MAX_PWM_VAL
+#define INT_MIN 1 // Minimum hysteresis time in seconds.
 
-int tachoControl;  // PWM frequency control in kHz (range: 0 - 255).
-int sensorValues[MAX_VALUES]; // Maximum number of sensors we want to read.
-int interval;      // Interval to repeat execution every X seconds.
-int debug;          // Debug mode indicator.
+int tachoControl;  // Hex 0 - 255 PWM frequency in kHz.
+int a[MAX_VALUES]; // Max amount of sensors we want to read in
+int interval;      // Our interval to repeat execution every x seconds
+int debug;
 
-// Function prototypes
-void printTemperatureTable();
-float calculateFanSpeed(int temperature);
-int interpolateFanSpeed(float pwm_frequency);
-void swap(int *arr, int n, int m);
-void heapSort(int *arr, int n);
-void setFanSpeed();
-
-void setFanSpeed() {
-    // Function to set fan speed based on temperature sensors.
-    // ... (existing code)
-    char *discardChar = (char *)malloc(sizeof(path));
-    char discard[sizeof(path)];
-
-    // ... (existing code)
-
-    free(discardChar);
-    // ... (existing code)
+void printfVals() {
+  for (float i = 0.0; i <= 100.0; i++) // From 0 to 100 degrees
+  {
+    float pwm_frequency = (exp((i - 17.33793493) / 15.0) + 7.65);
+    printf("Hunk for %0.f °C: %f = %f 1/60s\n", i, pwm_frequency,
+           (pwm_frequency * FAN_DIFF));
+  }
 }
 
-void printTemperatureTable() {
-    // Function to print a table of temperature values and their corresponding fan speeds.
-    for (float i = 0.0; i <= 100.0; i++) // Temperature range from 0 to 100 degrees Celsius
-    {
-        float pwm_frequency = calculateFanSpeed(i);
-        printf("Fan Speed for %0.f°C: %f = %f 1/60s\n", i, pwm_frequency, (pwm_frequency * FAN_DIFF));
-    }
-}
-
-float calculateFanSpeed(int temperature) {
-    // Function to calculate fan speed based on a temperature value.
-    // Fan speed calculation based on: g(x) = e^((x - 17.33793493) / 15) + 7.65
-    return exp((temperature - 17.33793493) / 15) + 7.65;
+float hysteresisControl(int temp) {
+  // g(x) = e^((x - 17.33793493) / 15) + 7.65
+  float pwm_frequency;
+  return pwm_frequency = exp((temp - 17.33793493) / 15) + 7.65;
 }
 
 int interpolateFanSpeed(float pwm_frequency) {
-    // Function to interpolate fan speed based on the PWM frequency.
-    return tachoControl = (int)(pwm_frequency < 0 ? (pwm_frequency - 0.5) : (pwm_frequency + 0.5));
+  return tachoControl = (int)(pwm_frequency < 0 ? (pwm_frequency - 0.5)
+                                                : (pwm_frequency + 0.5));
 }
 
-void swap(int *arr, int n, int m) {
-    // Function to swap elements in an array.
-    int tmp = arr[n];
-    arr[n] = arr[m];
-    arr[m] = tmp;
+void swap(int *keys, int n, int m) {
+  int tmp = keys[n];
+  keys[n] = keys[m];
+  keys[m] = tmp;
 }
 
-void heapSort(int *arr, int n) {
-    // Function to perform heap sort on an array.
-    arr -= 1;
+void __heapsort(int *keys, int n_keys) {
+  keys -= 1;
 
-    for (int last = 1; last <= n; ++last) {
-        int current = last;
-        while (current > 1) {
-            int parent = current / 2;
-            if (arr[parent] > arr[current])
-                break;
+  for (int last = 1; last <= n_keys; ++last) {
 
-            swap(arr, parent, current);
-            current = parent;
-        }
+    int n = last;
+    while (n > 1) {
+      int parent = n / 2;
+      if (keys[parent] > keys[n])
+        break;
+
+      swap(keys, parent, n);
+      n = parent;
     }
+  }
+  for (int last = n_keys - 1; last >= 1; --last) {
 
-    for (int last = n - 1; last >= 1; --last) {
-        swap(arr, 1, last + 1);
-        int current = 1;
+    swap(keys, 1, last + 1);
+    int n = 1;
+    while (1) {
+      int max = n;
+      int left = n * 2;
+      int right = left + 1;
 
-        while (1) {
-            int max = current;
-            int left = current * 2;
-            int right = left + 1;
+      if (left <= last && keys[left] > keys[max])
+        max = left;
+      if (right <= last && keys[right] > keys[max])
+        max = right;
 
-            if (left <= last && arr[left] > arr[max])
-                max = left;
-            if (right <= last && arr[right] > arr[max])
-                max = right;
+      if (n == max)
+        break;
 
-            if (current == max)
-                break;
-
-            swap(arr, max, current);
-            current = max;
-        }
+      swap(keys, max, n);
+      n = max;
     }
+  }
+}
+
+void setFanSpeed()
+
+{
+  // When there is no interval specified.
+  FILE *fp; // Our file handler
+  char path[1035];
+
+  // Open the command for reading.
+  fp = popen("sysctl -a | grep temperature", "r");
+  if (fp == NULL) {
+    printf("Failed to run command\n");
+    exit(1);
+  }
+
+  // Read the output a line at a time and fill into array.
+  int i = 0;
+  while (fgets(path, sizeof(path), fp) != NULL) {
+    char *discardChar;
+    discardChar = (char *)calloc(sizeof(path), sizeof(char));
+    char discard[sizeof(path)];
+    sscanf(path, "%s %i", &discard[i], &a[i]);
+    free(discardChar);
+
+    i++;
+  }
+  int n_a = sizeof(a) / sizeof(int);
+  __heapsort(a, n_a);
+  for (int k = sizeof(a); k > 0; k--) {
+    if (a[k] > 0) {
+      int max = a[k];
+      int targetFanSpeed = interpolateFanSpeed(hysteresisControl(max));
+      unsigned char buffer[32];
+      sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x10 0x%x",
+              targetFanSpeed); // Issued command
+      system(buffer);
+      sprintf(buffer, "ipmitool raw 0x30 0x91 0x5A 0x3 0x11 0x%x",
+              targetFanSpeed); // Issued command
+      system(buffer);
+      if (debug == 1) {
+        printf("Highest temp: %d\n", a[k]);
+        float realFanSpeed = (targetFanSpeed * FAN_DIFF);
+        printf("Target fan speed: 0x%x = %f 1/60s\n\n", targetFanSpeed,
+               realFanSpeed);
+      }
+      break;
+    }
+  }
+  // Close file handler
+  pclose(fp);
 }
 
 int main(int argc, char *argv[]) {
-    debug = 0;
-    interval = MIN_INTERVAL;
+  debug = 0;
 
-    if (argc == 1) {
-        printf("Setting Fan Speed.\n");
-        setFanSpeed();
-    } else if (argc == 2) {
-        if (strcmp(argv[1], "--help") == 0) {
-            printf("Usage: %s [INTERVAL] [OPTIONS]\n", argv[0]);
-            printf("  --table  Print scaled fan speed information\n");
-            printf("  --debug  Enable debug mode\n");
-        } else if (strcmp(argv[1], "--table") == 0) {
-            printTemperatureTable();
-        } else if (strcmp(argv[1], "--debug") == 0) {
-            debug = 1;
-            printf("Setting Fan Speed.\n");
-            setFanSpeed();
-        } else {
-            printf("Invalid input specified.\n");
-        }
-    } else if (argc >= 2 && argc <= 4) {
-        char *endPtr;
-        long intervalValue = strtol(argv[1], &endPtr, 10);
-
-        if (endPtr[0] == '\0' && intervalValue >= MIN_INTERVAL) {
-            interval = (int)intervalValue;
-
-            if (argc == 4 && strcmp(argv[3], "--debug") == 0) {
-                debug = 1;
-            }
-
-            printf("Hysteresis: %d seconds. This program will continue until being interrupted.\n", interval);
-
-            while (1) {
-                setFanSpeed();
-                sleep(interval);
-            }
-        } else {
-            printf("Invalid interval specified.\n");
-        }
-    } else {
-        printf("Invalid arguments. Use '%s --help' for usage information.\n", argv[0]);
-    }
-
+  if (argc == 1) {
+    printf("Fanspeed set.\n");
+    setFanSpeed();
     return 0;
-}
+  }
 
+  if (argc == 2) {
+    if (strcmp(argv[1], "--help") == 0) {
+
+      printf("Execute: %s ... [INTERVAL] ... [OPTION] \n\n", argv[0]);
+      printf(" --table, prints scaled fan speed information");
+      printf("Temperature control for X9 based Supermicro boards.\n");
+      printf("Using Bang�^`^sbang control with hysteresis and f=1/s\n");
+      printf("�^tx = 2*1K\n");
+      printf("t=1s\n");
+      printf("PT1 first order lag element.\n");
+      printf("\n");
+      printf("Relational approach g(x) = e^((x - 17.33793493) / 15) + 7.65\n");
+      printf("\n");
+      printf("Copyright (c) Fabian Druschke 2020\n");
+      printf("All rights reserved.\n");
+      return 0;
+    }
+    if (strcmp(argv[1], "--table") == 0) {
+      printfVals();
+      return 0;
+    }
+    if (strcmp(argv[1], "--debug") == 0) {
+      printf("Fanspeed set.\n");
+      debug = 1;
+      setFanSpeed();
+      return 0;
+    }
+  }
+  if ((argc == 2) || (argc == 3 && strcmp(argv[2], "--debug") == 0)) {
+    // Check if a valid interval has been entered
+    if (strcmp(argv[2], "--debug") == 0) {
+      debug = 1;
+    }
+    char *p;
+
+    errno = 0;
+    long conv = strtol(argv[1], &p, 10);
+
+    // Check for errors: e.g., the string does not represent an integer
+    // or the integer is less than int
+    if (errno != 0 || *p != '\0' || conv < INT_MIN) {
+      // Put here the handling of the error, like exiting the program with
+      // an error message
+      printf("Invalid input specified.");
+    } else {
+      // No error
+      interval = conv;
+      printf("Hysteresis: %d seconds. This program will continue until being "
+             "interrupted.\n",
+             interval);
+
+      // Block
+    LOOP:
+
+      setFanSpeed();
+      sleep(1);
+      goto LOOP;
+    }
+  }
+  return 0;
+}
